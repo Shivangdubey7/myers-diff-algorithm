@@ -4,27 +4,41 @@ import sys
 
 
 def read_lines(path):
+    """Open a file and split it into lines, removing the extra trailing empty line."""
     with open(path, "rb") as f:
         lines = f.read().split(b"\n")
+    # A final empty item is often produced by a trailing newline, so remove it to
+    # keep the last logical line from looking like an extra blank record.
     if lines and not lines[-1]:
         lines.pop()
     return lines
 
 
 def middle_snake(A, B, Ar, Br, n, m):
+    """Find the middle matching section of the two sequences using Myers' flood-fill idea.
+
+    This is the heart of the algorithm: it gets the best split point between the two
+    sequences so the work can be divided into smaller parts instead of comparing the
+    whole input again and again.
+    """
+    # The difference in length tells us whether the edit path is odd or even.
     delta = n - m
     odd = delta & 1
+    # How many steps we need to search in the widest part of the edit graph.
     max_d = (n + m + 1) // 2
     offset = max_d + 1
     size = 2 * max_d + 3
     vf = [-1] * size
     vb = [-1] * size
+    # The starting values are stored at a shifted index so we can keep the k-values
+    # centered around zero without special casing negative indexes.
     vf[offset + 1] = vb[offset + 1] = 0
     fs = fe = bs = be = 0
 
     for d in range(max_d + 1):
         for k in range(-d + fs, d - fe + 1, 2):
             idx = offset + k
+            # Choose the best previous frontier value for this diagonal.
             x = vf[idx + 1] if k == -d or (k != d and vf[idx - 1] < vf[idx + 1]) else vf[idx - 1] + 1
             y = x - k
             x0, y0 = x, y
@@ -42,11 +56,14 @@ def middle_snake(A, B, Ar, Br, n, m):
                 kb = delta - k
                 if -d < kb < d:
                     xb = vb[offset + kb]
+                    # When the reverse pass reaches the same furthest point, we found
+                    # the central split that keeps the search valid.
                     if xb != -1 and x + xb >= n:
                         return x0, y0, x, y
 
         for k in range(-d + bs, d - be + 1, 2):
             idx = offset + k
+            # Mirror the logic above for the reverse direction.
             x = vb[idx + 1] if k == -d or (k != d and vb[idx - 1] < vb[idx + 1]) else vb[idx - 1] + 1
             y = x - k
             x0, y0 = x, y
@@ -64,6 +81,8 @@ def middle_snake(A, B, Ar, Br, n, m):
                 kf = delta - k
                 if -d <= kf <= d:
                     xf = vf[offset + kf]
+                    # This is the matching condition that says the forward and reverse
+                    # paths meet in the middle, so we can stop early.
                     if xf != -1 and xf + x >= n:
                         return n - x, m - y, n - x0, m - y0
 
@@ -71,9 +90,12 @@ def middle_snake(A, B, Ar, Br, n, m):
 
 
 def diff_marks(a, b):
+    """Return markers showing which items in each list are kept, deleted, or inserted."""
     na, nb = len(a), len(b)
     ids, ia, ib = {}, [], []
 
+    # Give every distinct value a small integer ID so equal values can be compared
+    # cheaply without depending on the actual bytes or strings.
     for item in a:
         if item not in ids:
             ids[item] = len(ids)
@@ -85,6 +107,7 @@ def diff_marks(a, b):
         ib.append(ids[item])
 
     in_a, in_b = set(ia), set(ib)
+    # Keep only the positions that belong to values existing in both lists.
     ma = [i for i, value in enumerate(ia) if value in in_b]
     mb = [j for j, value in enumerate(ib) if value in in_a]
     fa = [ia[i] for i in ma]
@@ -95,6 +118,8 @@ def diff_marks(a, b):
     while stack:
         a0, a1, b0, b1 = stack.pop()
 
+        # Trim equal content from the left and right edges because unchanged lines do
+        # not need any edit marks.
         while a0 < a1 and b0 < b1 and fa[a0] == fb[b0]:
             a0 += 1
             b0 += 1
@@ -110,6 +135,7 @@ def diff_marks(a, b):
             del_f[a0:a1] = b"\x01" * (a1 - a0)
             continue
 
+        # Split the remaining parts again and recurse on the middle snake.
         A, B = fa[a0:a1], fb[b0:b1]
         n, m = a1 - a0, b1 - b0
         Ar, Br = A[::-1], B[::-1]
@@ -119,6 +145,9 @@ def diff_marks(a, b):
         Br.append(-2)
         sx, sy, ex, ey = middle_snake(A, B, Ar, Br, n, m)
 
+        # The split is stored as two regions: one on the right side and one on the
+        # left side of the middle match. This is how the algorithm avoids full O(n^2)
+        # work across the whole list.
         stack.append((a0 + ex, a1, b0 + ey, b1))
         stack.append((a0, a0 + sx, b0, b0 + sy))
 
@@ -132,6 +161,7 @@ def diff_marks(a, b):
 
 
 def ranges(marks):
+    """Convert a byte-string change map into compact ranges like 5-9,12-14."""
     n, parts = len(marks), []
     start = marks.find(1)
     while start != -1:
@@ -146,6 +176,7 @@ def ranges(marks):
 
 
 def build_output(a, b, del_a, ins_b, highlight):
+    """Render the diff as lines prefixed with space, minus, or plus signs."""
     na, nb = len(a), len(b)
     out = []
     i = j = 0
@@ -155,6 +186,7 @@ def build_output(a, b, del_a, ins_b, highlight):
         if next_delete == -1 and next_insert == -1:
             break
 
+        # Move forward through unchanged lines until the next real change starts.
         count = na - i
         if next_delete != -1:
             count = min(count, next_delete - i)
@@ -166,6 +198,7 @@ def build_output(a, b, del_a, ins_b, highlight):
             i += count
             j += count
 
+        # Find the full changed block in each file.
         delete_end = del_a.find(0, i)
         insert_end = ins_b.find(0, j)
         if delete_end == -1:
@@ -179,6 +212,9 @@ def build_output(a, b, del_a, ins_b, highlight):
         if not highlight:
             out.extend(b"+" + line for line in inserted)
         else:
+            # For highlight mode, compare the corresponding changed lines and report the
+            # changed-character ranges inside each one. This is the part that turns a
+            # line-level diff into a finer-grained edit hint.
             paired = min(len(deleted), len(inserted))
             for index, line in enumerate(inserted):
                 out.append(b"+" + line)
@@ -198,6 +234,7 @@ def build_output(a, b, del_a, ins_b, highlight):
 
 
 def main():
+    """Parse the command-line arguments and produce the requested diff output."""
     if len(sys.argv) != 4:
         print("usage: main.py lines|highlight A_PATH B_PATH", file=sys.stderr)
         return 2
@@ -213,6 +250,8 @@ def main():
         print(f"error: cannot read file: {exc}", file=sys.stderr)
         return 2
 
+    # The diff markers tell us where deletions and insertions happen. The output
+    # builder then turns those markers into a readable patch.
     del_a, ins_b = diff_marks(a, b)
     output = build_output(a, b, del_a, ins_b, command == "highlight")
 
