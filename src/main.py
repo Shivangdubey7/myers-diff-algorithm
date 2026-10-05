@@ -44,11 +44,17 @@ def myers(a, b):
     if na == 0 and nb == 0:
         mid = []
     elif na == 0:
-        mid = [("insert", 0, j) for j in range(nb)]
+        mid = []
+        for j in range(nb):
+            mid.append(("insert", 0, j))
     elif nb == 0:
-        mid = [("delete", i, 0) for i in range(na)]
+        mid = []
+        for i in range(na):
+            mid.append(("delete", i, 0))
     elif amid == bmid:
-        mid = [("keep", i, i) for i in range(na)]
+        mid = []
+        for i in range(na):
+            mid.append(("keep", i, i))
     else:
         mid = myers_core(amid, bmid)
     # Stitch prefix keeps + middle + suffix keeps with global indexes.
@@ -101,7 +107,9 @@ def myers_core(a, b):
             
             if x == n and y == m:
                 history.append(snap)
-                return backtrack(history, a, b, d, offset)
+                result = backtrack(history, a, b, d, offset)
+                del history  # Free memory immediately
+                return result
         
         history.append(snap)
     
