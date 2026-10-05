@@ -58,9 +58,10 @@ def myers(a, b):
     else:
         mid = myers_core(amid, bmid)
     # Stitch prefix keeps + middle + suffix keeps with global indexes.
+    # Optimize: don't materialize all prefix/suffix keeps - use range markers
     out = []
-    for i in range(p):
-        out.append(("keep", i, i))
+    if p > 0:
+        out.append(("keep_range", 0, 0, p))  # keep lines 0..p-1
     for op, ai, bi in mid:
         if op == "keep":
             out.append(("keep", p + ai, p + bi))
@@ -68,8 +69,8 @@ def myers(a, b):
             out.append(("delete", p + ai, 0))
         else:
             out.append(("insert", 0, p + bi))
-    for k in range(s):
-        out.append(("keep", n - s + k, m - s + k))
+    if s > 0:
+        out.append(("keep_range", n - s, m - s, s))  # keep s lines at end
     return out
 
 
@@ -174,17 +175,28 @@ def build_lines(a_lines, b_lines):
                 sys.stdout.buffer.write(b"\n")
             inss.clear()
 
-    for op, ai, bi in script:
-        if op == "keep":
+    for item in script:
+        op = item[0]
+        if op == "keep_range":
+            if dels or inss:
+                flush()
+            # Write range of keep lines
+            start_a = item[1]
+            count = item[3]
+            for i in range(count):
+                sys.stdout.buffer.write(b" ")
+                sys.stdout.buffer.write(a_lines[start_a + i])
+                sys.stdout.buffer.write(b"\n")
+        elif op == "keep":
             if dels or inss:
                 flush()
             sys.stdout.buffer.write(b" ")
-            sys.stdout.buffer.write(a_lines[ai])
+            sys.stdout.buffer.write(a_lines[item[1]])
             sys.stdout.buffer.write(b"\n")
         elif op == "delete":
-            dels.append(a_lines[ai])
-        else:
-            inss.append(b_lines[bi])
+            dels.append(a_lines[item[1]])
+        else:  # insert
+            inss.append(b_lines[item[2]])
     if dels or inss:
         flush()
 
@@ -217,11 +229,13 @@ def char_ranges(old_b, new_b):
     script = myers(oc, nc)
     op_ = []
     np_ = []
-    for op, ai, bi in script:
+    for item in script:
+        op = item[0]
         if op == "delete":
-            op_.append(ai)
+            op_.append(item[1])
         elif op == "insert":
-            np_.append(bi)
+            np_.append(item[2])
+        # keep_range doesn't produce changes, skip it
     return ranges_of(op_), ranges_of(np_)
 
 
@@ -248,17 +262,28 @@ def build_highlight(a_lines, b_lines):
         dels.clear()
         inss.clear()
 
-    for op, ai, bi in script:
-        if op == "keep":
+    for item in script:
+        op = item[0]
+        if op == "keep_range":
+            if dels or inss:
+                flush()
+            # Write range of keep lines
+            start_a = item[1]
+            count = item[3]
+            for i in range(count):
+                sys.stdout.buffer.write(b" ")
+                sys.stdout.buffer.write(a_lines[start_a + i])
+                sys.stdout.buffer.write(b"\n")
+        elif op == "keep":
             if dels or inss:
                 flush()
             sys.stdout.buffer.write(b" ")
-            sys.stdout.buffer.write(a_lines[ai])
+            sys.stdout.buffer.write(a_lines[item[1]])
             sys.stdout.buffer.write(b"\n")
         elif op == "delete":
-            dels.append(a_lines[ai])
-        else:
-            inss.append(b_lines[bi])
+            dels.append(a_lines[item[1]])
+        else:  # insert
+            inss.append(b_lines[item[2]])
     if dels or inss:
         flush()
 
