@@ -72,62 +72,64 @@ def myers_core(a, b):
     n = len(a)
     m = len(b)
     max_d = n + m
-    # Use array instead of dict: v_arr[k + offset] = x
-    # offset shifts k into positive indices
     offset = max_d
-    # Pre-allocate array for 2 depths (current and previous)
-    v_size = 2 * max_d + 1
-    v = [0] * v_size
-    # Store only endpoints for backtracking: history[d][k] = x
-    # Use dict per depth to save memory (only store visited k values)
-    history = [{}]
+    size = 2 * max_d + 1
+    
+    v = [0] * size
+    history = []
     
     for d in range(max_d + 1):
-        snap = {}
-        # k runs -d..d step 2.
+        # Store a compact copy of v array for this depth
+        history.append(v[:])
+        
         for k in range(-d, d + 1, 2):
-            k_idx = k + offset
-            if k == -d or (k != d and v[k_idx - 1] < v[k_idx + 1]):
-                # Down: insert from b, came from k+1.
-                x = v[k_idx + 1]
+            idx = k + offset
+            
+            if k == -d or (k != d and v[idx - 1] < v[idx + 1]):
+                x = v[idx + 1]
             else:
-                # Right: delete from a, came from k-1.
-                x = v[k_idx - 1] + 1
+                x = v[idx - 1] + 1
+            
             y = x - k
-            # Snake: follow equal items.
+            
             while x < n and y < m and a[x] == b[y]:
                 x += 1
                 y += 1
-            v[k_idx] = x
-            snap[k] = x
+            
+            v[idx] = x
+            
             if x == n and y == m:
-                history.append(snap)
-                return backtrack(history, a, b, d)
-        history.append(snap)
+                return backtrack(history, a, b, d, offset)
+    
     return []
 
 
-def backtrack(history, a, b, d):
-    # Walk backwards from (n, m) using saved V tables.
+def backtrack(history, a, b, d, offset):
+    # Walk backwards from (n, m) using saved V arrays.
     n = len(a)
     m = len(b)
     x = n
     y = m
     rev = []
+    
     for depth in range(d, -1, -1):
         v = history[depth]
         k = x - y
-        if k == -depth or (k != depth and v.get(k - 1, -1) < v.get(k + 1, -1)):
+        
+        if k == -depth or (k != depth and v[k - 1 + offset] < v[k + 1 + offset]):
             prev_k = k + 1
         else:
             prev_k = k - 1
-        prev_x = v.get(prev_k, 0)
+        
+        prev_x = v[prev_k + offset]
         prev_y = prev_x - prev_k
+        
         # Snake part = keeps.
         while x > prev_x and y > prev_y:
             x -= 1
             y -= 1
             rev.append(("keep", x, y))
+        
         if depth > 0:
             if x == prev_x:
                 y -= 1
@@ -135,6 +137,7 @@ def backtrack(history, a, b, d):
             else:
                 x -= 1
                 rev.append(("delete", x, y))
+    
     rev.reverse()
     return rev
 
