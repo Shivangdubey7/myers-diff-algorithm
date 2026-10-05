@@ -50,16 +50,7 @@ def myers(a, b):
     elif amid == bmid:
         mid = [("keep", i, i) for i in range(na)]
     else:
-        # Fast path: no common item -> all deletes then inserts.
-        # Avoids huge Myers search when D = na + nb.
-        try:
-            if set(amid).isdisjoint(set(bmid)):
-                mid = [("delete", i, 0) for i in range(na)]
-                mid += [("insert", 0, j) for j in range(nb)]
-            else:
-                mid = myers_core(amid, bmid)
-        except TypeError:
-            mid = myers_core(amid, bmid)
+        mid = myers_core(amid, bmid)
     # Stitch prefix keeps + middle + suffix keeps with global indexes.
     out = []
     for i in range(p):
@@ -80,27 +71,39 @@ def myers_core(a, b):
     # Core forward Myers on the trimmed middle. Returns edit script.
     n = len(a)
     m = len(b)
-    v = {}
-    history = []
-    vget = v.get
-    for d in range(n + m + 1):
-        history.append(v.copy())
+    max_d = n + m
+    # Use array instead of dict: v_arr[k + offset] = x
+    # offset shifts k into positive indices
+    offset = max_d
+    # Pre-allocate array for 2 depths (current and previous)
+    v_size = 2 * max_d + 1
+    v = [0] * v_size
+    # Store only endpoints for backtracking: history[d][k] = x
+    # Use dict per depth to save memory (only store visited k values)
+    history = [{}]
+    
+    for d in range(max_d + 1):
+        snap = {}
         # k runs -d..d step 2.
         for k in range(-d, d + 1, 2):
-            if k == -d or (k != d and vget(k - 1, -1) < vget(k + 1, -1)):
+            k_idx = k + offset
+            if k == -d or (k != d and v[k_idx - 1] < v[k_idx + 1]):
                 # Down: insert from b, came from k+1.
-                x = vget(k + 1, 0)
+                x = v[k_idx + 1]
             else:
                 # Right: delete from a, came from k-1.
-                x = vget(k - 1, 0) + 1
+                x = v[k_idx - 1] + 1
             y = x - k
             # Snake: follow equal items.
             while x < n and y < m and a[x] == b[y]:
                 x += 1
                 y += 1
-            v[k] = x
+            v[k_idx] = x
+            snap[k] = x
             if x == n and y == m:
+                history.append(snap)
                 return backtrack(history, a, b, d)
+        history.append(snap)
     return []
 
 
@@ -113,13 +116,12 @@ def backtrack(history, a, b, d):
     rev = []
     for depth in range(d, -1, -1):
         v = history[depth]
-        vget = v.get
         k = x - y
-        if k == -depth or (k != depth and vget(k - 1, -1) < vget(k + 1, -1)):
+        if k == -depth or (k != depth and v.get(k - 1, -1) < v.get(k + 1, -1)):
             prev_k = k + 1
         else:
             prev_k = k - 1
-        prev_x = vget(prev_k, 0)
+        prev_x = v.get(prev_k, 0)
         prev_y = prev_x - prev_k
         # Snake part = keeps.
         while x > prev_x and y > prev_y:
