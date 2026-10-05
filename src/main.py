@@ -76,11 +76,11 @@ def myers_core(a, b):
     size = 2 * max_d + 1
     
     v = [0] * size
-    history = []
+    # Store only visited k values per depth (sparse storage)
+    history = [{}]
     
     for d in range(max_d + 1):
-        # Store a compact copy of v array for this depth
-        history.append(v[:])
+        snap = {}
         
         for k in range(-d, d + 1, 2):
             idx = k + offset
@@ -97,15 +97,19 @@ def myers_core(a, b):
                 y += 1
             
             v[idx] = x
+            snap[k] = x
             
             if x == n and y == m:
+                history.append(snap)
                 return backtrack(history, a, b, d, offset)
+        
+        history.append(snap)
     
     return []
 
 
 def backtrack(history, a, b, d, offset):
-    # Walk backwards from (n, m) using saved V arrays.
+    # Walk backwards from (n, m) using saved V dictionaries.
     n = len(a)
     m = len(b)
     x = n
@@ -116,12 +120,12 @@ def backtrack(history, a, b, d, offset):
         v = history[depth]
         k = x - y
         
-        if k == -depth or (k != depth and v[k - 1 + offset] < v[k + 1 + offset]):
+        if k == -depth or (k != depth and v.get(k - 1, -1) < v.get(k + 1, -1)):
             prev_k = k + 1
         else:
             prev_k = k - 1
         
-        prev_x = v[prev_k + offset]
+        prev_x = v.get(prev_k, 0)
         prev_y = prev_x - prev_k
         
         # Snake part = keeps.
