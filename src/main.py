@@ -155,33 +155,38 @@ def backtrack(history, a, b, d, offset):
 
 
 def build_lines(a_lines, b_lines):
-    # Part A with delete-first rule. Buffer output, write once.
+    # Part A with delete-first rule. Write output incrementally.
     script = myers(a_lines, b_lines)
-    buf = []
     dels = []
     inss = []
 
     def flush():
-        for t in dels:
-            buf.append(b"-" + t + b"\n")
-        for t in inss:
-            buf.append(b"+" + t + b"\n")
-        dels.clear()
-        inss.clear()
+        if dels:
+            for t in dels:
+                sys.stdout.buffer.write(b"-")
+                sys.stdout.buffer.write(t)
+                sys.stdout.buffer.write(b"\n")
+            dels.clear()
+        if inss:
+            for t in inss:
+                sys.stdout.buffer.write(b"+")
+                sys.stdout.buffer.write(t)
+                sys.stdout.buffer.write(b"\n")
+            inss.clear()
 
     for op, ai, bi in script:
         if op == "keep":
             if dels or inss:
                 flush()
-            buf.append(b" " + a_lines[ai] + b"\n")
+            sys.stdout.buffer.write(b" ")
+            sys.stdout.buffer.write(a_lines[ai])
+            sys.stdout.buffer.write(b"\n")
         elif op == "delete":
             dels.append(a_lines[ai])
         else:
             inss.append(b_lines[bi])
     if dels or inss:
         flush()
-    if buf:
-        sys.stdout.buffer.write(b"".join(buf))
 
 
 def ranges_of(pos):
@@ -223,18 +228,23 @@ def char_ranges(old_b, new_b):
 def build_highlight(a_lines, b_lines):
     # Part B: same blocks as Part A, plus "? old | new" after each paired +.
     script = myers(a_lines, b_lines)
-    buf = []
     dels = []
     inss = []
 
     def flush():
-        for t in dels:
-            buf.append(b"-" + t + b"\n")
-        for i, t in enumerate(inss):
-            buf.append(b"+" + t + b"\n")
-            if i < len(dels):
-                o, w = char_ranges(dels[i], t)
-                buf.append(("? " + o + " | " + w + "\n").encode("utf-8"))
+        if dels:
+            for t in dels:
+                sys.stdout.buffer.write(b"-")
+                sys.stdout.buffer.write(t)
+                sys.stdout.buffer.write(b"\n")
+        if inss:
+            for i, t in enumerate(inss):
+                sys.stdout.buffer.write(b"+")
+                sys.stdout.buffer.write(t)
+                sys.stdout.buffer.write(b"\n")
+                if i < len(dels):
+                    o, w = char_ranges(dels[i], t)
+                    sys.stdout.buffer.write(("? " + o + " | " + w + "\n").encode("utf-8"))
         dels.clear()
         inss.clear()
 
@@ -242,15 +252,15 @@ def build_highlight(a_lines, b_lines):
         if op == "keep":
             if dels or inss:
                 flush()
-            buf.append(b" " + a_lines[ai] + b"\n")
+            sys.stdout.buffer.write(b" ")
+            sys.stdout.buffer.write(a_lines[ai])
+            sys.stdout.buffer.write(b"\n")
         elif op == "delete":
             dels.append(a_lines[ai])
         else:
             inss.append(b_lines[bi])
     if dels or inss:
         flush()
-    if buf:
-        sys.stdout.buffer.write(b"".join(buf))
 
 
 def main():
