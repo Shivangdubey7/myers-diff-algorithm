@@ -81,10 +81,8 @@ def myers_core(a, b):
     n = len(a)
     m = len(b)
     max_d = n + m
-    offset = max_d
-    size = 2 * max_d + 1
     
-    v = [0] * size
+    v = {}
     # Store only visited k values per depth (sparse storage)
     history = [{}]
     
@@ -92,12 +90,10 @@ def myers_core(a, b):
         snap = {}
         
         for k in range(-d, d + 1, 2):
-            idx = k + offset
-            
-            if k == -d or (k != d and v[idx - 1] < v[idx + 1]):
-                x = v[idx + 1]
+            if k == -d or (k != d and v.get(k - 1, -1) < v.get(k + 1, -1)):
+                x = v.get(k + 1, 0)
             else:
-                x = v[idx - 1] + 1
+                x = v.get(k - 1, 0) + 1
             
             y = x - k
             
@@ -105,12 +101,12 @@ def myers_core(a, b):
                 x += 1
                 y += 1
             
-            v[idx] = x
+            v[k] = x
             snap[k] = x
             
             if x == n and y == m:
                 history.append(snap)
-                result = backtrack(history, a, b, d, offset)
+                result = backtrack(history, a, b, d, None)
                 del history  # Free memory immediately
                 del v
                 gc.collect()  # Force garbage collection
@@ -123,6 +119,7 @@ def myers_core(a, b):
 
 def backtrack(history, a, b, d, offset):
     # Walk backwards from (n, m) using saved V dictionaries.
+    # offset parameter ignored - kept for compatibility
     n = len(a)
     m = len(b)
     x = n
