@@ -52,9 +52,7 @@ def myers(a, b):
         for i in range(na):
             mid.append(("delete", i, 0))
     elif amid == bmid:
-        mid = []
-        for i in range(na):
-            mid.append(("keep", i, i))
+        mid = [("keep_range", 0, 0, na)]
     else:
         mid = myers_core(amid, bmid)
     # Stitch prefix keeps + middle + suffix keeps with global indexes.
@@ -62,13 +60,16 @@ def myers(a, b):
     out = []
     if p > 0:
         out.append(("keep_range", 0, 0, p))  # keep lines 0..p-1
-    for op, ai, bi in mid:
-        if op == "keep":
-            out.append(("keep", p + ai, p + bi))
+    for item in mid:
+        op = item[0]
+        if op == "keep_range":
+            out.append(("keep_range", p + item[1], p + item[2], item[3]))
+        elif op == "keep":
+            out.append(("keep", p + item[1], p + item[2]))
         elif op == "delete":
-            out.append(("delete", p + ai, 0))
-        else:
-            out.append(("insert", 0, p + bi))
+            out.append(("delete", p + item[1], 0))
+        else:  # insert
+            out.append(("insert", 0, p + item[2]))
     if s > 0:
         out.append(("keep_range", n - s, m - s, s))  # keep s lines at end
     return out
@@ -137,11 +138,16 @@ def backtrack(history, a, b, d, offset):
         prev_x = v.get(prev_k, 0)
         prev_y = prev_x - prev_k
         
-        # Snake part = keeps.
+        # Snake part = keeps. Count them instead of storing each.
+        keep_count = 0
         while x > prev_x and y > prev_y:
             x -= 1
             y -= 1
-            rev.append(("keep", x, y))
+            keep_count += 1
+        
+        if keep_count > 0:
+            # Store as range instead of individual keeps
+            rev.append(("keep_range", x, y, keep_count))
         
         if depth > 0:
             if x == prev_x:
