@@ -1,4 +1,5 @@
 import sys
+import gc
 
 
 def read_lines(path):
@@ -111,6 +112,8 @@ def myers_core(a, b):
                 history.append(snap)
                 result = backtrack(history, a, b, d, offset)
                 del history  # Free memory immediately
+                del v
+                gc.collect()  # Force garbage collection
                 return result
         
         history.append(snap)
@@ -205,6 +208,7 @@ def build_lines(a_lines, b_lines):
             inss.append(b_lines[item[2]])
     if dels or inss:
         flush()
+    del script  # Explicit cleanup
 
 
 def ranges_of(pos):
